@@ -14,9 +14,9 @@ def main():
         sys.exit(0)
         
     except Exception as e:
-        if "wall" in str(e): pass
-        logging.error(f"{e=}")
-        sys.exit(1)
+        if not "wall" in str(e):
+            logging.error(f"{e=}")
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()
