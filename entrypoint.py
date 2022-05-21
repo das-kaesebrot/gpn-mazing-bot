@@ -5,7 +5,7 @@ from classes.bot import Bot
 
 def main():
     try:        
-        logging.basicConfig(format='[%(asctime)s] [%(levelname)s] %(message)s', level=logging.DEBUG)
+        logging.basicConfig(format='[%(asctime)s] [%(levelname)s] %(message)s', level=logging.INFO)
         bot = Bot()
         bot.communicate()
         
@@ -17,6 +17,9 @@ def main():
         if not "wall" in str(e):
             logging.error(f"{e=}")
             sys.exit(1)
+    
+    finally:
+        logging.info(f"Stats: {bot.wins=} {bot.losses=}")
 
 if __name__ == "__main__":
     main()
