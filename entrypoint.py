@@ -14,6 +14,7 @@ def main():
         sys.exit(0)
         
     except Exception as e:
+        if "wall" in str(e): pass
         logging.error(f"{e=}")
         sys.exit(1)
 
