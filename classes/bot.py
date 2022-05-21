@@ -1,9 +1,9 @@
-from calendar import different_locale
-from cmath import log
 import os
+import numpy
 import socket
 from dotenv import load_dotenv
 import logging
+from classes.history import HistoryEntry
 
 class Bot:
     
@@ -23,6 +23,7 @@ class Bot:
     ACTION_S_WIN = "win"
     ACTION_S_LOSE = "lose"
     ACTION_S_GOAL = "goal"
+    ACTION_S_GAME = "game"
     
     buffer = []
     direction = None
@@ -30,9 +31,12 @@ class Bot:
     last_pos = None
     wins = 0
     losses = 0
+    map_dimensions = []
+    goal = [0, 0]
     
     DIRECTIONS = ["up", "right", "down", "left"]
-        
+    
+    history = numpy.ndarray((0,0))
     
     def __init__(self) -> None:
         load_dotenv()
@@ -44,24 +48,37 @@ class Bot:
         logging.debug([self.host, self.port, self.username, self.password])
         self.bootstrap()
         
+        
+        
     def connect(self):
         logging.debug("trying to connect")
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.s.connect((self.host, self.port))
         logging.debug("connected")
         
+        
     def join(self):
         logging.debug("joining")
         self._send(f"{self.ACTION_JOIN}{self.SEPARATOR}{self.username}{self.SEPARATOR}{self.password}{self.ENDCHAR}")
         
+        
     def bootstrap(self):
         self.connect()
         self.join()
-        self.send_chat_message(f"Hello world from {self.username}!")
+        # self.send_chat_message(f"Hello world from {self.username}!")
+        
+        
+    def init_history(self):
+        if len(self.map_dimensions):
+            self.history = numpy.zeros((self.map_dimensions[0] + 1, self.map_dimensions[1] + 1))
+        else:
+            self.history = numpy.zeros((self.goal[0] + 1, self.goal[1] + 1))
+    
     
     def send_chat_message(self, msg):
         logging.debug(f"Chatting message: {msg}")
         self._send(f"{self.ACTION_CHAT}{self.SEPARATOR}{msg}{self.ENDCHAR}")
+        
         
     def communicate(self):
         while True:
@@ -71,17 +88,34 @@ class Bot:
             new_elems = self.buffer[lastlen-1:]
             for elem in new_elems:
                 if elem:
-                    logging.debug(f"[SERVER] {elem}")
+                    logging.info(f"[SERVER] {elem}")
                     self.handle_buffer(elem)
+
 
     def update_buffer(self):
         for elem in self._recv().decode("utf-8").split("\n"):
             self.buffer.append(elem)
     
+    
     def update_pos(self, pos):
         logging.debug(f"{self.pos=} {self.last_pos=}")
         if not self.last_pos:
-            self.direction = [0,1,1,1]
+            self.direction = [1,1,1,1]
+            
+            delta_x = pos[0] - self.goal[0]
+            delta_y = pos[1] - self.goal[1]
+            
+            if abs(delta_x) > abs(delta_y):
+                if delta_x > 0:
+                    self.direction[1] = 0
+                else:
+                    self.direction[3] = 0
+            else:
+                if delta_y > 0:
+                    self.direction[0] = 0
+                else:
+                    self.direction[2] = 0
+            
             self.last_pos = pos
             self.pos = pos
             return
@@ -146,19 +180,23 @@ class Bot:
         
         self.send_move_msg(next_move)
     
+    
     def send_move_msg(self, next_move):
-        logging.debug(f"Going {self.DIRECTIONS[next_move]}")
+        logging.info(f"Going {self.DIRECTIONS[next_move]}")
         self._send(
             f"{self.ACTION_MOVE}{self.SEPARATOR}{self.DIRECTIONS[next_move]}{self.ENDCHAR}"
         )
 
+
     def _send(self, msg):
         totalsent = 0
+        logging.info(f"[CLIENT] {msg.strip()}")
         msg = msg.encode()
         sent = self.s.send(msg[totalsent:])
         if sent == 0:
             raise RuntimeError("socket connection broken")
         totalsent = totalsent + sent
+
 
     def _recv(self):
         chunks = []
@@ -170,10 +208,13 @@ class Bot:
         bytes_recd = bytes_recd + len(chunk)
         return b''.join(chunks)
 
+
     def nuke_everything(self):
         self.pos = []
         self.last_pos = None
         self.direction = None
+        self.history = numpy.ndarray((0,0))
+    
     
     def handle_buffer(self, buffer):
         for attr in dir(self):
@@ -181,8 +222,14 @@ class Bot:
                 msg_as_list = buffer.split(self.SEPARATOR)
                 s_param = msg_as_list[0]
                 
-                if s_param == self.ACTION_S_GOAL:
-                    self.goal = msg_as_list[1:]
+                if s_param == self.ACTION_S_GAME:
+                    int_list = list(map(lambda x: int(x), msg_as_list[1:]))
+                    self.goal = int_list[2:4]
+                    self.map_dimensions = int_list[0:2]
+                    
+                    if self.history.any():
+                        self.init_history()
+                    
                     logging.debug(self.goal)
                     break
                 
@@ -191,8 +238,12 @@ class Bot:
                     self.update_pos(int_pos)
                     logging.debug(f"Position: x: {self.pos[0]} y: {self.pos[1]}")
                     logging.debug(f"Walls: {self.pos[2:]}")
+                    
+                    if self.history.any():
+                        self.init_history()
+                    
                     self.move()
-                    break                
+                    break
                 
                 if s_param == self.ACTION_S_ERR:
                     raise Exception(msg_as_list[1])
@@ -202,9 +253,11 @@ class Bot:
                     logging.info(f"{self.wins=} {self.losses=}")
                     self.nuke_everything()
                     self.wins += 1
+                    break
                 
                 if s_param == self.ACTION_S_LOSE:
                     logging.info("We lost")
                     logging.info(f"{self.wins=} {self.losses=}")
                     self.nuke_everything()
                     self.losses += 1
+                    break
