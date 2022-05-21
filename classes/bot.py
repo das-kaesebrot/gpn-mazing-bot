@@ -169,6 +169,11 @@ class Bot:
         chunks.append(chunk)
         bytes_recd = bytes_recd + len(chunk)
         return b''.join(chunks)
+
+    def nuke_everything(self):
+        self.pos = []
+        self.last_pos = None
+        self.direction = None
     
     def handle_buffer(self, buffer):
         for attr in dir(self):
@@ -194,10 +199,12 @@ class Bot:
                 
                 if s_param == self.ACTION_S_WIN:
                     logging.info("We won!")
-                    logging.debug(f"{self.wins=} {self.losses=}")
+                    logging.info(f"{self.wins=} {self.losses=}")
+                    self.nuke_everything()
                     self.wins += 1
                 
                 if s_param == self.ACTION_S_LOSE:
                     logging.info("We lost")
-                    logging.debug(f"{self.wins=} {self.losses=}")
+                    logging.info(f"{self.wins=} {self.losses=}")
+                    self.nuke_everything()
                     self.losses += 1
