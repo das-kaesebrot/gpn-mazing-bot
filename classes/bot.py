@@ -26,8 +26,13 @@ class Bot:
     
     buffer = []
     direction = None
-    _current_pos = []
-    _pos_history = []
+    pos = []
+    last_pos = None
+    wins = 0
+    losses = 0
+    
+    DIRECTIONS = ["up", "right", "down", "left"]
+        
     
     def __init__(self) -> None:
         load_dotenv()
@@ -36,7 +41,7 @@ class Bot:
         self.username = os.environ.get("GPN_BOT_USERNAME", "r2d2")
         self.password = os.environ.get("GPN_BOT_PASSWORD")
         
-        logging.debug(self.host, self.port, self.username, self.password)
+        logging.debug([self.host, self.port, self.username, self.password])
         self.bootstrap()
         
     def connect(self):
@@ -65,12 +70,87 @@ class Bot:
             
             new_elems = self.buffer[lastlen-1:]
             for elem in new_elems:
-                logging.debug(f"REPLY: {elem}")
-                self.handle_buffer(elem)
+                if elem:
+                    logging.debug(f"[SERVER] {elem}")
+                    self.handle_buffer(elem)
 
     def update_buffer(self):
         for elem in self._recv().decode("utf-8").split("\n"):
             self.buffer.append(elem)
+    
+    def update_pos(self, pos):
+        logging.debug(f"{self.pos=} {self.last_pos=}")
+        if not self.last_pos:
+            self.direction = [0,1,1,1]
+            self.last_pos = pos
+            self.pos = pos
+            return
+        
+        self.last_pos = self.pos
+        self.pos = pos
+        
+        list_direction = [
+            self.last_pos[0] - self.pos[0],
+            self.last_pos[1] - self.pos[1]
+        ]
+        logging.debug(f"{list_direction=}")
+        
+        direction = [1,1,1,1]
+        
+        # top
+        direction[0] = 1
+        # right
+        direction[1] = 1
+        # bottom
+        direction[2] = 1
+        # left
+        direction[3] = 1
+        
+        # handle x axis
+        if list_direction[0] != 0:
+            if list_direction[0] < 0:
+                direction[1] = 0
+            else:
+                direction[3] = 0
+
+        # handle y axis
+        if list_direction[1] != 0:
+            if list_direction[1] > 0:
+                direction[0] = 0
+            else:
+                direction[2] = 0
+        
+        self.direction = direction
+        
+            
+    def move(self):
+        index_of_direction = self.direction.index(0)
+        logging.debug(f"{self.direction=}")
+        
+        index_of_direction = index_of_direction - 1
+        
+        if index_of_direction < 0:
+            index_of_direction += 4
+        
+        for i in range(4):
+            safe_index = index_of_direction + i
+            
+            if safe_index > 3:
+                safe_index = safe_index - 4
+                
+            logging.debug(f"{safe_index=} {index_of_direction=}")
+            
+            if self.pos[safe_index + 2] == 0:
+                next_move = safe_index
+                break
+        
+        self.send_move_msg(next_move)
+    
+    def send_move_msg(self, next_move):
+        logging.debug(f"Going {self.DIRECTIONS[next_move]}")
+        self._send(
+            f"{self.ACTION_MOVE}{self.SEPARATOR}{self.DIRECTIONS[next_move]}{self.ENDCHAR}"
+        )
 
     def _send(self, msg):
         totalsent = 0
@@ -102,9 +182,22 @@ class Bot:
                     break
                 
                 if s_param == self.ACTION_S_POS:
-                    self.pos = msg_as_list[1:]
-                    logging.debug(self.pos)
-                    break
+                    int_pos = list(map(lambda x: int(x), msg_as_list[1:]))
+                    self.update_pos(int_pos)
+                    logging.debug(f"Position: x: {self.pos[0]} y: {self.pos[1]}")
+                    logging.debug(f"Walls: {self.pos[2:]}")
+                    self.move()
+                    break                
                 
                 if s_param == self.ACTION_S_ERR:
                     raise Exception(msg_as_list[1])
+                
+                if s_param == self.ACTION_S_WIN:
+                    logging.info("We won!")
+                    logging.debug(f"{self.wins=} {self.losses=}")
+                    self.wins += 1
+                
+                if s_param == self.ACTION_S_LOSE:
+                    logging.info("We lost")
+                    logging.debug(f"{self.wins=} {self.losses=}")
+                    self.losses += 1
