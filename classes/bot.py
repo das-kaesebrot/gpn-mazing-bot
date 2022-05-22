@@ -164,27 +164,65 @@ class Bot:
             
     def move(self):
         index_of_direction = self.direction.index(0)
+        relative_bias = [1] * 4
         logging.debug(f"{self.direction=}")
         
-        index_of_direction = index_of_direction - 1
+            
+        delta_x = self.pos[0] - self.goal[0]
+        delta_y = self.pos[1] - self.goal[1]
+        
+        if abs(delta_x) > abs(delta_y):
+            if delta_x < 0:
+                relative_bias[1] = 0
+            else:
+                relative_bias[3] = 0
+        else:
+            if delta_y > 0:
+                relative_bias[0] = 0
+            else:
+                relative_bias[2] = 0
+        
+        index_of_direction -= 1
+        index_of_relative_bias = relative_bias.index(0)
+        logging.debug(f"{relative_bias=}")
         
         if index_of_direction < 0:
             index_of_direction += 4
         
         for i in range(4):
             safe_index = index_of_direction + i
+            safe_index_relative_bias = index_of_relative_bias
             
-            if safe_index > 3:
-                safe_index = safe_index - 4
+            logging.debug(f"relative bias direction: {self.DIRECTIONS[safe_index_relative_bias]}")
+            
+            if safe_index > 3: safe_index -= 4
+                
+            if ((self.pos[safe_index_relative_bias + 2]) == 0) and self.history[self.pos[0]][self.pos[1]]:
+                if getattr(self.history[self.pos[0]][self.pos[1]], "directions_taken")[safe_index_relative_bias] == 1:
+                    next_move = safe_index_relative_bias
+                    logging.debug("using relative bias")
+                    break
                 
             logging.debug(f"{safe_index=} {index_of_direction=}")
             
-            if self.pos[safe_index + 2] == 0:
+            if (self.pos[safe_index + 2]) == 0:
+                if self.history[self.pos[0]][self.pos[1]]:
+                    if getattr(self.history[self.pos[0]][self.pos[1]], "directions_taken")[safe_index] == 1:
+                        next_move = safe_index
+                        break
+                
                 next_move = safe_index
                 break
         
-        self.history[self.pos[0]][self.pos[1]] = HistoryEntry(walls=self.pos[2:], directions_taken=[1,1,1,1])
-        logging.debug(self.history)
+        if not self.history[self.pos[0]][self.pos[1]]:
+            directions_taken = [1] * 4
+            directions_taken[next_move] = 0
+            self.history[self.pos[0]][self.pos[1]] = HistoryEntry(walls=self.pos[2:], directions_taken=directions_taken)
+        else:
+            directions_taken = getattr(self.history[self.pos[0]][self.pos[1]], "directions_taken")
+            directions_taken[next_move] = 0
+            setattr(self.history[self.pos[0]][self.pos[1]], "directions_taken", directions_taken)
+        setattr(self.history[self.pos[0]][self.pos[1]], "visited", True)
         self.send_move_msg(next_move)
     
     
