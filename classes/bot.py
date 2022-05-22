@@ -77,9 +77,7 @@ class Bot:
         
     def init_history(self):
         if len(self.map_dimensions):
-            self.history = numpy.zeros((self.map_dimensions[0] + 1, self.map_dimensions[1] + 1))
-        else:
-            self.history = numpy.zeros((self.goal[0] + 1, self.goal[1] + 1))
+            self.history = numpy.empty((self.map_dimensions[0], self.map_dimensions[1]), dtype=HistoryEntry)
     
     
     def send_chat_message(self, msg):
@@ -185,6 +183,8 @@ class Bot:
                 next_move = safe_index
                 break
         
+        self.history[self.pos[0]][self.pos[1]] = HistoryEntry(walls=self.pos[2:], directions_taken=[1,1,1,1])
+        logging.debug(self.history)
         self.send_move_msg(next_move)
     
     
@@ -220,7 +220,7 @@ class Bot:
         self.pos = []
         self.last_pos = None
         self.direction = None
-        self.history = numpy.ndarray((0,0))
+        # self.history = numpy.ndarray((0,0))
     
     
     def handle_buffer(self, buffer):
@@ -233,9 +233,8 @@ class Bot:
                     int_list = list(map(lambda x: int(x), msg_as_list[1:]))
                     self.goal = int_list[2:4]
                     self.map_dimensions = int_list[0:2]
-                    
-                    if self.history.any():
-                        self.init_history()
+    
+                    self.init_history()
                     
                     logging.debug(self.goal)
                     break
@@ -245,9 +244,6 @@ class Bot:
                     self.update_pos(int_pos)
                     logging.debug(f"Position: x: {self.pos[0]} y: {self.pos[1]}")
                     logging.debug(f"Walls: {self.pos[2:]}")
-                    
-                    if self.history.any():
-                        self.init_history()
                     
                     self.move()
                     break
