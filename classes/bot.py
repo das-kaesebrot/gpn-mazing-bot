@@ -171,19 +171,18 @@ class Bot:
         delta_x = self.pos[0] - self.goal[0]
         delta_y = self.pos[1] - self.goal[1]
         
-        if abs(delta_x) > abs(delta_y):
-            if delta_x < 0:
-                relative_bias[1] = 0
-            else:
-                relative_bias[3] = 0
+        if delta_x < 0:
+            relative_bias[1] = 0
         else:
-            if delta_y > 0:
-                relative_bias[0] = 0
-            else:
-                relative_bias[2] = 0
+            relative_bias[3] = 0
+        if delta_y > 0:
+            relative_bias[0] = 2
+        else:
+            relative_bias[2] = 2
         
         index_of_direction -= 1
         index_of_relative_bias = relative_bias.index(0)
+        secondary_index_of_relative_bias = relative_bias.index(2)
         logging.debug(f"{relative_bias=}")
         
         if index_of_direction < 0:
@@ -193,7 +192,8 @@ class Bot:
             safe_index = index_of_direction + i
             safe_index_relative_bias = index_of_relative_bias
             
-            logging.debug(f"relative bias direction: {self.DIRECTIONS[safe_index_relative_bias]}")
+            logging.debug(f"bias direction: {self.DIRECTIONS[safe_index_relative_bias]}")
+            logging.debug(f"secondary bias direction: {self.DIRECTIONS[secondary_index_of_relative_bias]}")
             
             if safe_index > 3: safe_index -= 4
                 
@@ -201,6 +201,12 @@ class Bot:
                 if getattr(self.history[self.pos[0]][self.pos[1]], "directions_taken")[safe_index_relative_bias] == 1:
                     next_move = safe_index_relative_bias
                     logging.debug("using relative bias")
+                    break
+                
+            if ((self.pos[secondary_index_of_relative_bias + 2]) == 0) and self.history[self.pos[0]][self.pos[1]]:
+                if getattr(self.history[self.pos[0]][self.pos[1]], "directions_taken")[secondary_index_of_relative_bias] == 1:
+                    next_move = secondary_index_of_relative_bias
+                    logging.debug("using secondary relative bias")
                     break
                 
             logging.debug(f"{safe_index=} {index_of_direction=}")
