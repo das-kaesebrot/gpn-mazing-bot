@@ -41,19 +41,26 @@ class Bot:
     def __init__(self) -> None:
         load_dotenv()
         self.host = os.environ.get("GPN_MAZE_HOST")
+        self.host6 = os.environ.get("GPN_MAZE_HOST6")
         self.port = int(os.environ.get("GPN_MAZE_PORT"))
         self.username = os.environ.get("GPN_BOT_USERNAME", "r2d2")
         self.password = os.environ.get("GPN_BOT_PASSWORD")
         
-        logging.debug([self.host, self.port, self.username, self.password])
+        logging.debug([self.host, self.host6, self.port, self.username, self.password])
         self.bootstrap()
         
         
         
     def connect(self):
-        logging.debug("trying to connect")
+        logging.debug("trying to connect via IPv4")
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((self.host, self.port))
+        self.s.settimeout(10)
+        try:
+            self.s.connect((self.host, self.port))
+        except:
+            logging.debug("connection via IPv4 failed, connecting via IPv6")
+            self.s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            self.s.connect((self.host6, self.port))
         logging.debug("connected")
         
         
